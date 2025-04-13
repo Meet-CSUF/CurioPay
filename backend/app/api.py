@@ -17,10 +17,17 @@ app.add_middleware(
 )
 
 # Initialize Groq client
-client = Groq(api_key="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")  # Replace with valid key
+with open("../groq_key.txt", "r") as file:
+    api_key = file.readline().strip()
+client = Groq(api_key=api_key)
+
+# Define message structure for context-aware conversations
+class Message(BaseModel):
+    role: str  # "system", "user", or "assistant"
+    content: str
 
 class ChatRequest(BaseModel):
-    message: str
+    messages: list[Message]  # Full conversation history
 
 @app.options("/chat")
 async def options_chat():
@@ -39,10 +46,26 @@ async def chat_endpoint(request: ChatRequest):
         "Access-Control-Allow-Credentials": "true",
     }
     try:
+        # Prepare messages for Groq API
+        groq_messages = [
+            {"role": msg.role, "content": msg.content}
+            for msg in request.messages
+        ]
+
+        # Add system message if first in conversation
+        if not any(msg.role == "system" for msg in request.messages):
+            groq_messages.insert(0, {
+                "role": "system",
+                "content": "You are a helpful AI assistant. Keep responses concise and relevant to the conversation context."
+            })
+
         completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": request.message}],
+            messages=groq_messages,
             model="llama-3.1-8b-instant",
+            temperature=0.7,
+            max_tokens=1024
         )
+
         return JSONResponse(
             content={"reply": completion.choices[0].message.content},
             headers=headers

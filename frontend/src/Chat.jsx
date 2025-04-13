@@ -1,19 +1,27 @@
 import React, { useState } from "react";
 
 const Chat = () => {
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [messages, setMessages] = useState([]); // Stores conversation history
+  const [input, setInput] = useState(""); // Current user input
+  const [isLoading, setIsLoading] = useState(false); // Loading state for API requests
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
     setIsLoading(true);
+
     try {
+      // Prepare conversation history for context-aware request
+      const conversation = messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+      conversation.push({ role: "user", content: input }); // Add current user message
+
       const response = await fetch("http://localhost:8000/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ messages: conversation }), // Send full conversation history
       });
 
       if (!response.ok) {
@@ -21,20 +29,14 @@ const Chat = () => {
       }
 
       const data = await response.json();
-      setMessages(prev => [
+
+      // Update messages with user input and assistant reply
+      setMessages((prev) => [
         ...prev,
-        { 
-          id: `${Date.now()}-user`, 
-          role: "user", 
-          content: input 
-        },
-        { 
-          id: `${Date.now()}-assistant`, 
-          role: "assistant", 
-          content: data.reply 
-        },
+        { id: `${Date.now()}-user`, role: "user", content: input },
+        { id: `${Date.now()}-assistant`, role: "assistant", content: data.reply },
       ]);
-      setInput("");
+      setInput(""); // Clear input field
     } catch (error) {
       console.error("API Request Failed:", error);
       alert(`Message send failed: ${error.message}`);
